@@ -1,0 +1,425 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Admin | Product Comparator</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
+</head>
+<body>
+  <button type="button" class="topbar-menu-toggle" aria-label="Open navigation menu" id="menuToggleButton">
+    <span class="topbar-menu-line"></span>
+    <span class="topbar-menu-line"></span>
+    <span class="topbar-menu-line"></span>
+  </button>
+
+  <div class="app-menu-backdrop" id="appMenuBackdrop"></div>
+  <aside class="app-menu-sidebar" id="appMenuSidebar" aria-label="Sidebar menu">
+    <div class="app-menu-header">Navigation</div>
+    <a class="app-menu-item" href="{{ url_for('home') }}" data-menu-link>
+      <svg class="app-menu-item-icon" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+        <path d="M8 1.5 1.5 7v7.5h4.2V9.8h4.6v4.7h4.2V7L8 1.5z" />
+      </svg>
+      <span>Home</span>
+    </a>
+    <a class="app-menu-item" href="{{ url_for('admin_route') }}" data-menu-link>
+      <svg class="app-menu-item-icon" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+        <path d="M7.1 1.2a1 1 0 0 1 1.8 0l.4.9a5.8 5.8 0 0 1 1.2.5l1-.4a1 1 0 0 1 1.2.6l.7 1.7a1 1 0 0 1-.4 1.2l-.9.5c.1.4.1.8.1 1.2l.8.6a1 1 0 0 1 .3 1.2l-.8 1.7a1 1 0 0 1-1.2.5l-.9-.3a5 5 0 0 1-1 .6l-.4 1a1 1 0 0 1-1 .6H7a1 1 0 0 1-1-.6l-.4-1a5 5 0 0 1-1-.6l-.9.3a1 1 0 0 1-1.2-.5l-.8-1.7a1 1 0 0 1 .3-1.2l.8-.6a5 5 0 0 1 .1-1.2l-.9-.5a1 1 0 0 1-.4-1.2l.7-1.7a1 1 0 0 1 1.2-.6l1 .4a5.8 5.8 0 0 1 1.2-.5l.4-.9zM8 10.5A2.5 2.5 0 1 0 8 5a2.5 2.5 0 0 0 0 5.5z" />
+      </svg>
+      <span>Admin Mode</span>
+    </a>
+  </aside>
+
+  <div class="container-fluid page-shell py-4">
+    <section class="admin-hero p-4 p-lg-5 mb-4">
+      <div class="row g-3 align-items-end">
+        <div class="col-lg-8">
+          <div class="text-uppercase small fw-semibold text-white-50 mb-2">Admin Panel</div>
+          <h1 class="display-6 fw-bold mb-2">Cache and Search Management</h1>
+          <p class="mb-0 text-white-50">Review previous searches, inspect recorded SQL rows, and run cache cleanup actions safely.</p>
+        </div>
+        <div class="col-lg-4">
+          <div class="row g-2">
+            <div class="col-6">
+              <div class="metric-box">
+                <span class="label">Cache groups</span>
+                <div class="value">{{ total_files }}</div>
+              </div>
+            </div>
+            <div class="col-6">
+              <div class="metric-box">
+                <span class="label">Total records</span>
+                <div class="value">{{ total_records }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    {% if status_message %}
+    <div class="alert alert-info rounded-4 shadow-sm">{{ status_message }}</div>
+    {% endif %}
+
+    <div class="row g-4 mb-1">
+      <div class="col-lg-6">
+        <div class="card admin-card h-100">
+          <div class="card-header py-3">
+            <div class="text-uppercase small text-muted fw-semibold">Search Statistics</div>
+            <div class="fw-semibold">Cache Overview</div>
+          </div>
+          <div class="card-body">
+            <div class="row g-3">
+              <div class="col-sm-6">
+                <div class="stat-tile">
+                  <span class="stat-tile-label">Average Price</span>
+                  <div class="stat-tile-value">{{ "%.2f"|format(admin_stats.average_price) }}</div>
+                </div>
+              </div>
+              <div class="col-sm-6">
+                <div class="stat-tile">
+                  <span class="stat-tile-label">Median Price</span>
+                  <div class="stat-tile-value">{{ "%.2f"|format(admin_stats.median_price) }}</div>
+                </div>
+              </div>
+              <div class="col-sm-6">
+                <div class="stat-tile">
+                  <span class="stat-tile-label">Zero Price Ratio</span>
+                  <div class="stat-tile-value">{{ "%.1f"|format(admin_stats.zero_price_ratio) }}%</div>
+                </div>
+              </div>
+              <div class="col-sm-6">
+                <div class="stat-tile">
+                  <span class="stat-tile-label">Zero-Row Files</span>
+                  <div class="stat-tile-value">{{ admin_stats.zero_row_files }}</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="small text-muted mt-3">
+              Latest activity:
+              {% if admin_stats.latest_activity %}
+                {{ admin_stats.latest_activity.query }} ({{ admin_stats.latest_activity.last_modified_display }})
+              {% else %}
+                No cache activity yet.
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-lg-6">
+        <div class="card admin-card h-100">
+          <div class="card-header py-3">
+            <div class="text-uppercase small text-muted fw-semibold">Platform Distribution</div>
+            <div class="fw-semibold">Product Mix</div>
+          </div>
+          <div class="card-body">
+            <div class="donut-wrap">
+              <div class="donut-chart" data-chart="{{ admin_stats.platform_chart_css }}"></div>
+              <div class="small text-muted">Distribution of all cached product rows across platforms.</div>
+            </div>
+
+            <div class="chart-list">
+            {% for row in admin_stats.platform_distribution %}
+              {% set bar_color = row.color if row.color else '#2563eb' %}
+              <div>
+                <div class="chart-label">
+                  <span class="chart-dot" data-color="{{ bar_color }}"></span>
+                  <span>{{ row.platform }}</span>
+                </div>
+                <div class="chart-row">
+                  <div class="chart-track">
+                    <span class="chart-fill" data-width="{{ row.percent }}" data-color="{{ bar_color }}"></span>
+                  </div>
+                  <span class="chart-value">{{ row.count }} ({{ row.percent }}%)</span>
+                </div>
+              </div>
+            {% else %}
+              <div class="text-muted">No platform data yet.</div>
+            {% endfor %}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card admin-card mt-4 mb-4">
+      <div class="card-header py-3">
+        <div class="text-uppercase small text-muted fw-semibold">Top Searches</div>
+        <div class="fw-semibold">Most Recorded Queries</div>
+      </div>
+      <div class="card-body">
+        {% set top_max = admin_stats.top_queries[0].record_count if admin_stats.top_queries else 0 %}
+        <div class="chart-list">
+        {% for row in admin_stats.top_queries %}
+          {% set pct = ((row.record_count / top_max) * 100) if top_max else 0 %}
+          <div>
+            <div class="chart-label">{{ row.query }}</div>
+            <div class="chart-row">
+              <div class="chart-track">
+                <span class="chart-fill" data-width="{{ '%.1f'|format(pct) }}" data-color="#2563eb"></span>
+              </div>
+              <span class="chart-value">{{ row.record_count }} rows</span>
+            </div>
+            <div class="small text-muted mt-1">{{ row.file_name }}</div>
+          </div>
+        {% else %}
+          <div class="text-center text-muted py-4">No search statistics yet.</div>
+        {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    {% set list_col_class = 'col-lg-4' if selected_file else 'col-lg-7' %}
+    {% set preview_col_class = 'col-lg-8' if selected_file else 'col-lg-5' %}
+    <div class="row g-4">
+      <div class="{{ list_col_class }}">
+        <div class="card admin-card">
+          <div class="card-header d-flex justify-content-between align-items-center py-3">
+            <div>
+              <div class="text-uppercase small text-muted fw-semibold">Previous Searches</div>
+              <div class="fw-semibold">Recorded SQL Cache Groups</div>
+            </div>
+            <div class="d-flex gap-2">
+              <form method="post" action="{{ url_for('admin_deduplicate_cache_files_route') }}" class="m-0">
+                <button
+                  type="submit"
+                  class="btn btn-outline-secondary btn-sm"
+                  onclick="return confirm('Deduplicate all cached SQL groups now?');"
+                >
+                  Deduplicate Cache
+                </button>
+              </form>
+              <form method="post" action="{{ url_for('admin_delete_all_cache_files_route') }}" class="m-0">
+                <button
+                  type="submit"
+                  class="btn btn-danger btn-sm"
+                  onclick="return confirm('Delete ALL cached SQL records? This cannot be undone.');"
+                >
+                  Delete All Records
+                </button>
+              </form>
+            </div>
+          </div>
+          <div class="table-responsive">
+            <table class="table table-hover admin-table mb-0">
+              <thead>
+                <tr>
+                  <th>Query</th>
+                  <th>Records</th>
+                  <th>Last Modified</th>
+                  <th>File</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+              {% for entry in cache_files %}
+                <tr>
+                  <td class="fw-semibold">{{ entry.query }}</td>
+                  <td>{{ entry.record_count }}</td>
+                  <td>{{ entry.last_modified_display }}</td>
+                  <td><span class="text-muted">{{ entry.file_name }}</span></td>
+                  <td class="d-flex gap-2">
+                    <a class="btn btn-outline-primary btn-sm" href="{{ url_for('admin_route', file=entry.file_name) }}">View Records</a>
+                    <form method="post" action="{{ url_for('admin_deduplicate_one_cache_file_route') }}" class="m-0">
+                      <input type="hidden" name="file_name" value="{{ entry.file_name }}">
+                      <input type="hidden" name="selected" value="{{ selected_file }}">
+                      <button
+                        type="submit"
+                        class="btn btn-outline-secondary btn-sm"
+                        onclick="return confirm('Deduplicate {{ entry.file_name }} now?');"
+                      >
+                        Dedup
+                      </button>
+                    </form>
+                    <form method="post" action="{{ url_for('admin_delete_cache_file_route') }}" class="m-0">
+                      <input type="hidden" name="file_name" value="{{ entry.file_name }}">
+                      <input type="hidden" name="selected" value="{{ selected_file }}">
+                      <button
+                        type="submit"
+                        class="btn btn-outline-danger btn-sm"
+                        onclick="return confirm('Delete {{ entry.file_name }}?');"
+                      >
+                        Delete
+                      </button>
+                    </form>
+                  </td>
+                </tr>
+              {% else %}
+                <tr>
+                  <td colspan="5" class="text-center text-muted py-4">No cached SQL groups yet.</td>
+                </tr>
+              {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="{{ preview_col_class }}">
+        <div class="card admin-card mb-4 record-preview-panel {{ 'is-animated' if selected_file else '' }}">
+          <div class="card-header py-3">
+            <div class="text-uppercase small text-muted fw-semibold">Record Preview</div>
+            <div class="fw-semibold">
+              {% if selected_file %}
+                {{ selected_query if selected_query else selected_file }}
+              {% else %}
+                Select a search file
+              {% endif %}
+            </div>
+          </div>
+          <div class="card-body">
+            {% if selected_file and selected_rows %}
+            <div class="card border-0 bg-light mb-3">
+              <div class="card-body">
+                <div class="text-uppercase small text-muted fw-semibold mb-2">Add New Row</div>
+                <form method="post" action="{{ url_for('admin_add_cache_row_route') }}" class="row g-2 align-items-end">
+                  <input type="hidden" name="file_name" value="{{ selected_file }}">
+                  <input type="hidden" name="selected" value="{{ selected_file }}">
+                  <input type="hidden" name="search_query_term" value="{{ selected_query if selected_query else '' }}">
+                  <div class="col-12">
+                    <label class="form-label small mb-1">Name</label>
+                    <input type="text" class="form-control form-control-sm" name="name" required>
+                  </div>
+                  <div class="col-6">
+                    <label class="form-label small mb-1">Platform</label>
+                    <input type="text" class="form-control form-control-sm" name="platform" placeholder="Shopee">
+                  </div>
+                  <div class="col-6">
+                    <label class="form-label small mb-1">Category</label>
+                    <input type="text" class="form-control form-control-sm" name="category" placeholder="General">
+                  </div>
+                  <div class="col-4">
+                    <label class="form-label small mb-1">Price</label>
+                    <input type="number" step="0.01" min="0" class="form-control form-control-sm" name="price" value="0">
+                  </div>
+                  <div class="col-4">
+                    <label class="form-label small mb-1">Rating</label>
+                    <input type="number" step="0.01" min="0" max="5" class="form-control form-control-sm" name="rating" value="0">
+                  </div>
+                  <div class="col-4">
+                    <label class="form-label small mb-1">Review Count</label>
+                    <input type="number" min="0" class="form-control form-control-sm" name="review_count" value="0">
+                  </div>
+                  <div class="col-12">
+                    <label class="form-label small mb-1">URL</label>
+                    <input type="url" class="form-control form-control-sm" name="url" placeholder="https://...">
+                  </div>
+                  <div class="col-12 d-grid">
+                    <button type="submit" class="btn btn-primary btn-sm">Add Row</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+
+            <div class="table-responsive preview-table-wrap">
+              <table class="table table-sm table-striped mb-0">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Platform</th>
+                    <th>Category</th>
+                    <th>Price</th>
+                    <th>Rating</th>
+                    <th>Reviews</th>
+                    <th>URL</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                {% for row in selected_rows %}
+                  <tr>
+                    <form method="post" action="{{ url_for('admin_update_cache_row_route') }}">
+                      <input type="hidden" name="file_name" value="{{ selected_file }}">
+                      <input type="hidden" name="selected" value="{{ selected_file }}">
+                      <input type="hidden" name="row_index" value="{{ loop.index0 }}">
+                      <input type="hidden" name="search_query_term" value="{{ selected_query if selected_query else row.search_query_term }}">
+                      <input type="hidden" name="seller_name" value="{{ row.seller_name }}">
+                      <input type="hidden" name="seller_rating" value="{{ row.seller_rating }}">
+
+                      <td><input type="text" class="form-control form-control-sm" name="name" value="{{ row.name }}" required></td>
+                      <td><input type="text" class="form-control form-control-sm" name="platform" value="{{ row.platform }}"></td>
+                      <td><input type="text" class="form-control form-control-sm" name="category" value="{{ row.category }}"></td>
+                      <td><input type="number" step="0.01" min="0" class="form-control form-control-sm" name="price" value="{{ row.price }}"></td>
+                      <td><input type="number" step="0.01" min="0" max="5" class="form-control form-control-sm" name="rating" value="{{ row.rating }}"></td>
+                      <td><input type="number" min="0" class="form-control form-control-sm" name="review_count" value="{{ row.review_count }}"></td>
+                      <td><input type="url" class="form-control form-control-sm" name="url" value="{{ row.url }}"></td>
+                      <td>
+                        <button type="submit" class="btn btn-outline-primary btn-sm">Update</button>
+                      </td>
+                    </form>
+                  </tr>
+                {% endfor %}
+                </tbody>
+              </table>
+            </div>
+            <div class="small text-muted mt-2">Showing up to 300 rows from {{ selected_file }}.</div>
+            {% elif selected_file %}
+            <div class="text-muted">No rows found in this file.</div>
+            {% else %}
+            <div class="text-muted">Choose a file from the table to inspect its records.</div>
+            {% endif %}
+
+            <div class="mt-3 d-grid">
+              {% if selected_query %}
+              <a class="btn btn-outline-primary" href="{{ url_for('results_route', q=selected_query, live='false') }}">Open Selected Search Results</a>
+              {% else %}
+              <button type="button" class="btn btn-outline-primary" disabled>Select a file to open results</button>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      const toggle = document.getElementById("menuToggleButton");
+      const backdrop = document.getElementById("appMenuBackdrop");
+      const sidebar = document.getElementById("appMenuSidebar");
+      const donut = document.querySelector(".donut-chart[data-chart]");
+      if (!toggle || !backdrop || !sidebar) return;
+
+      if (donut) {
+        const segments = donut.getAttribute("data-chart") || "#e2e8f0 0% 100%";
+        donut.style.background = `conic-gradient(${segments})`;
+      }
+
+      document.querySelectorAll(".chart-dot[data-color], .chart-fill[data-color]").forEach((el) => {
+        const color = el.getAttribute("data-color") || "#2563eb";
+        el.style.setProperty("--c", color);
+      });
+      document.querySelectorAll(".chart-fill[data-width]").forEach((el) => {
+        const width = el.getAttribute("data-width") || "0";
+        el.style.setProperty("--w", `${width}%`);
+      });
+
+      const closeMenu = () => document.body.classList.remove("menu-open");
+      const openMenu = () => document.body.classList.add("menu-open");
+
+      toggle.addEventListener("click", function () {
+        if (document.body.classList.contains("menu-open")) {
+          closeMenu();
+          return;
+        }
+        openMenu();
+      });
+
+      backdrop.addEventListener("click", closeMenu);
+
+      sidebar.querySelectorAll("[data-menu-link]").forEach((link) => {
+        link.addEventListener("click", closeMenu);
+      });
+
+      document.addEventListener("keydown", function (event) {
+        if (event.key === "Escape") {
+          closeMenu();
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

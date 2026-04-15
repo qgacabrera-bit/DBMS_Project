@@ -1,0 +1,535 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Product Comparator</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/index.css') }}">
+</head>
+<body>
+  <div class="live-loading-overlay" id="liveSearchLoadingOverlay" aria-hidden="true">
+    <div class="live-loading-card d-flex align-items-center gap-3" role="status" aria-live="polite">
+      <div class="spinner-border text-primary" aria-hidden="true"></div>
+      <div>
+        <div class="fw-semibold">Live check in progress</div>
+        <div class="small text-muted">Fetching real-time listings...</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="container-fluid page-shell py-4">
+    <button type="button" class="topbar-menu-toggle" aria-label="Open navigation menu" id="menuToggleButton">
+      <span class="topbar-menu-line"></span>
+      <span class="topbar-menu-line"></span>
+      <span class="topbar-menu-line"></span>
+    </button>
+
+    <div class="app-menu-backdrop" id="appMenuBackdrop"></div>
+    <aside class="app-menu-sidebar" id="appMenuSidebar" aria-label="Sidebar menu">
+      <div class="app-menu-header">Navigation</div>
+      <a class="app-menu-item" href="{{ url_for('home') }}" data-menu-link>
+        <svg class="app-menu-item-icon" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+          <path d="M8 1.5 1.5 7v7.5h4.2V9.8h4.6v4.7h4.2V7L8 1.5z" />
+        </svg>
+        <span>Home</span>
+      </a>
+      <a class="app-menu-item" href="{{ url_for('admin_route') }}" data-menu-link>
+        <svg class="app-menu-item-icon" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+          <path d="M7.1 1.2a1 1 0 0 1 1.8 0l.4.9a5.8 5.8 0 0 1 1.2.5l1-.4a1 1 0 0 1 1.2.6l.7 1.7a1 1 0 0 1-.4 1.2l-.9.5c.1.4.1.8.1 1.2l.8.6a1 1 0 0 1 .3 1.2l-.8 1.7a1 1 0 0 1-1.2.5l-.9-.3a5 5 0 0 1-1 .6l-.4 1a1 1 0 0 1-1 .6H7a1 1 0 0 1-1-.6l-.4-1a5 5 0 0 1-1-.6l-.9.3a1 1 0 0 1-1.2-.5l-.8-1.7a1 1 0 0 1 .3-1.2l.8-.6a5 5 0 0 1 .1-1.2l-.9-.5a1 1 0 0 1-.4-1.2l.7-1.7a1 1 0 0 1 1.2-.6l1 .4a5.8 5.8 0 0 1 1.2-.5l.4-.9zM8 10.5A2.5 2.5 0 1 0 8 5a2.5 2.5 0 0 0 0 5.5z" />
+        </svg>
+        <span>Admin Mode</span>
+      </a>
+    </aside>
+
+    <section class="hero-panel p-4 p-lg-5 mb-4">
+      <div class="row align-items-end g-4 position-relative">
+        <div class="col-lg-8">
+          <div class="hero-kicker">Product comparison dashboard</div>
+          <h1 class="hero-title">Compare listings faster and scan the best deal first.</h1>
+          <p class="hero-copy">Search across Shopee, Lazada, and Amazon, then narrow results with the sidebar filters and sortable table.</p>
+        </div>
+        <div class="col-lg-4">
+          <div class="row g-3">
+            <div class="col-6">
+              <div class="hero-stat">
+                <span class="hero-stat-label">Current query</span>
+                <div class="hero-stat-value">{{ query if query else 'Ready' }}</div>
+              </div>
+            </div>
+            <div class="col-6">
+              <div class="hero-stat">
+                <span class="hero-stat-label">Results</span>
+                <div class="hero-stat-value">{{ total }}</div>
+              </div>
+            </div>
+            <div class="col-12">
+              <div class="chip-row">
+                <span class="chip">Price + rating filters</span>
+                <span class="chip">Sortable results</span>
+                <span class="chip">Live check mode</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    {% set headed_value = request.args.get('headed', 'false') %}
+    {% set shopee_account_scraper_value = request.args.get('use_shopee_account_scraper', 'true') %}
+    {% set skip_platform_values = request.args.getlist('skip_platforms') %}
+    {% set selected_platform = request.args.get('platform', '') %}
+    {% set category_value = request.args.get('category', '') %}
+    {% set min_price_value = request.args.get('min_price', '0') %}
+    {% set max_price_value = request.args.get('max_price', '100000') %}
+    {% set min_rating_value = request.args.get('min_rating', '0') %}
+    {% set max_rating_value = request.args.get('max_rating', '5') %}
+
+    <form method="get" action="{{ url_for('results_route') }}" class="row g-4 align-items-start mb-4 search-panel" id="searchForm">
+      <div class="col-12">
+        <div class="row g-3 align-items-end">
+          <div class="col-lg-9">
+            <label class="form-label fw-semibold text-uppercase text-muted small" for="searchQuery">Search</label>
+            <input type="text" class="form-control form-control-lg search-input" name="q" id="searchQuery" value="{{ query }}" placeholder="Search products (e.g. iphone 15)">
+
+            <div class="d-flex flex-wrap align-items-center gap-3 mt-2">
+              <div>
+                <label class="form-label d-block mb-1 fw-semibold text-uppercase text-muted small">Browser Mode</label>
+                <div class="form-check form-check-inline me-3">
+                  <input
+                    class="form-check-input"
+                    type="radio"
+                    name="headed"
+                    id="modeHeadless"
+                    value="false"
+                    {{ 'checked' if headed_value in ['false', '0', '', None] else '' }}
+                  >
+                  <label class="form-check-label" for="modeHeadless">Headless</label>
+                </div>
+                <div class="form-check form-check-inline">
+                  <input
+                    class="form-check-input"
+                    type="radio"
+                    name="headed"
+                    id="modeHeaded"
+                    value="true"
+                    {{ 'checked' if headed_value in ['true', '1', 'yes', 'on'] else '' }}
+                  >
+                  <label class="form-check-label" for="modeHeaded">Headed</label>
+                </div>
+              </div>
+              <div>
+                <label class="form-label d-block mb-1 fw-semibold text-uppercase text-muted small">Shopee Account Scraper</label>
+                <div class="form-check form-check-inline me-3">
+                  <input
+                    class="form-check-input"
+                    type="radio"
+                    name="use_shopee_account_scraper"
+                    id="shopeeAccountScraperOn"
+                    value="true"
+                    {{ 'checked' if shopee_account_scraper_value in ['true', '1', 'yes', 'on', '', None] else '' }}
+                  >
+                  <label class="form-check-label" for="shopeeAccountScraperOn">On</label>
+                </div>
+                <div class="form-check form-check-inline">
+                  <input
+                    class="form-check-input"
+                    type="radio"
+                    name="use_shopee_account_scraper"
+                    id="shopeeAccountScraperOff"
+                    value="false"
+                    {{ 'checked' if shopee_account_scraper_value in ['false', '0'] else '' }}
+                  >
+                  <label class="form-check-label" for="shopeeAccountScraperOff">Off</label>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="col-lg-3 d-grid gap-2 search-actions">
+            <button type="submit" name="live" value="false" class="btn btn-primary btn-lg">Search</button>
+            <button type="submit" name="live" value="true" class="btn btn-outline-primary">Live Check</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-lg-3">
+        <div class="card sidebar-panel sidebar-card">
+          <div class="card-body">
+            <div class="sidebar-section">
+              <div class="d-flex align-items-center justify-content-between mb-3">
+                <div>
+                  <h2 class="h6 text-uppercase text-muted mb-1">Filters</h2>
+                  <p class="small text-muted mb-0">Refine the current search</p>
+                </div>
+                <span class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill">Quick</span>
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label" for="platformSelect">Platform</label>
+                <select class="form-select search-input" name="platform" id="platformSelect">
+                  <option value="" {{ 'selected' if not selected_platform else '' }}>All</option>
+                  <option value="Shopee" {{ 'selected' if selected_platform == 'Shopee' else '' }}>Shopee</option>
+                  <option value="Lazada" {{ 'selected' if selected_platform == 'Lazada' else '' }}>Lazada</option>
+                  <option value="Amazon" {{ 'selected' if selected_platform == 'Amazon' else '' }}>Amazon</option>
+                  <option value="Google Shopping" {{ 'selected' if selected_platform == 'Google Shopping' else '' }}>Google Shopping</option>
+                </select>
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label" for="categoryInput">Category</label>
+                <input type="text" class="form-control search-input" name="category" id="categoryInput" value="{{ category_value }}" placeholder="General">
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label d-flex justify-content-between fw-semibold" for="minPrice">
+                  <span>Min Price</span>
+                  <span class="text-muted sidebar-range-value" id="minPriceValue">{{ min_price_value }}</span>
+                </label>
+                <input type="range" class="form-range" name="min_price" id="minPrice" min="0" max="100000" step="10" value="{{ min_price_value }}">
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label d-flex justify-content-between fw-semibold" for="maxPrice">
+                  <span>Max Price</span>
+                  <span class="text-muted sidebar-range-value" id="maxPriceValue">{{ max_price_value }}</span>
+                </label>
+                <input type="range" class="form-range" name="max_price" id="maxPrice" min="0" max="100000" step="10" value="{{ max_price_value }}">
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label d-flex justify-content-between fw-semibold" for="minRating">
+                  <span>Min Rating</span>
+                  <span class="text-muted sidebar-range-value" id="minRatingValue">{{ min_rating_value }}</span>
+                </label>
+                <input type="range" class="form-range" name="min_rating" id="minRating" min="0" max="5" step="0.1" value="{{ min_rating_value }}">
+              </div>
+
+              <div class="mb-0">
+                <label class="form-label d-flex justify-content-between fw-semibold" for="maxRating">
+                  <span>Max Rating</span>
+                  <span class="text-muted sidebar-range-value" id="maxRatingValue">{{ max_rating_value }}</span>
+                </label>
+                <input type="range" class="form-range" name="max_rating" id="maxRating" min="0" max="5" step="0.1" value="{{ max_rating_value }}">
+              </div>
+            </div>
+
+            <div class="sidebar-section">
+              <label class="form-label d-block mb-2">Skip Platforms</label>
+              <div class="d-flex gap-3 flex-wrap">
+                <div class="form-check">
+                  <input
+                    class="form-check-input"
+                    type="checkbox"
+                    name="skip_platforms"
+                    id="skipShopee"
+                    value="shopee"
+                    {{ 'checked' if 'shopee' in skip_platform_values else '' }}
+                  >
+                  <label class="form-check-label" for="skipShopee">Shopee</label>
+                </div>
+                <div class="form-check">
+                  <input
+                    class="form-check-input"
+                    type="checkbox"
+                    name="skip_platforms"
+                    id="skipLazada"
+                    value="lazada"
+                    {{ 'checked' if 'lazada' in skip_platform_values else '' }}
+                  >
+                  <label class="form-check-label" for="skipLazada">Lazada</label>
+                </div>
+                <div class="form-check">
+                  <input
+                    class="form-check-input"
+                    type="checkbox"
+                    name="skip_platforms"
+                    id="skipAmazon"
+                    value="amazon"
+                    {{ 'checked' if 'amazon' in skip_platform_values else '' }}
+                  >
+                  <label class="form-check-label" for="skipAmazon">Amazon</label>
+                </div>
+                <div class="form-check">
+                  <input
+                    class="form-check-input"
+                    type="checkbox"
+                    name="skip_platforms"
+                    id="skipGoogleShopping"
+                    value="google_shopping"
+                    {{ 'checked' if 'google_shopping' in skip_platform_values else '' }}
+                  >
+                  <label class="form-check-label" for="skipGoogleShopping">Google Shopping</label>
+                </div>
+              </div>
+            </div>
+
+            <div class="d-grid gap-2 sidebar-section">
+              <button type="submit" name="live" value="false" class="btn btn-primary">Apply Filters</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-lg-9">
+        {% if error %}
+        <div class="alert alert-warning rounded-4 shadow-sm">{{ error }}</div>
+        {% endif %}
+
+        {% if status_message %}
+        <div class="alert alert-info rounded-4 shadow-sm">{{ status_message }}</div>
+        {% endif %}
+
+        <div class="card results-card">
+          <div class="card-header results-header d-flex flex-wrap gap-2 justify-content-between align-items-center py-3 px-4">
+            <div>
+              <div class="text-uppercase text-muted small fw-semibold">Results</div>
+              <div class="h5 mb-0">{{ query if query else 'No search yet' }}</div>
+            </div>
+            <div class="d-flex gap-2">
+              <span class="badge text-bg-light border results-badge">Source: {{ source_label|default('none') }}</span>
+              <span class="badge text-bg-primary results-badge">{{ total }} items</span>
+            </div>
+          </div>
+          <div class="table-responsive table-wrap">
+            <table class="table table-striped table-hover results-table mb-0" id="resultsTable">
+              <thead>
+                <tr>
+                  <th data-sort-type="string" data-sort-index="0">
+                    <span class="sort-label">Name <button type="button" class="sort-toggle" aria-label="Sort Name">-</button></span>
+                  </th>
+                  <th data-sort-type="string" data-sort-index="1">
+                    <span class="sort-label">Platform <button type="button" class="sort-toggle" aria-label="Sort Platform">-</button></span>
+                  </th>
+                  <th data-sort-type="number" data-sort-index="2">
+                    <span class="sort-label">Price <button type="button" class="sort-toggle" aria-label="Sort Price">-</button></span>
+                  </th>
+                  <th data-sort-type="string" data-sort-index="3">
+                    <span class="sort-label">Category <button type="button" class="sort-toggle" aria-label="Sort Category">-</button></span>
+                  </th>
+                  <th data-sort-type="number" data-sort-index="4">
+                    <span class="sort-label">Rating <button type="button" class="sort-toggle" aria-label="Sort Rating">-</button></span>
+                  </th>
+                  <th data-sort-type="number" data-sort-index="5">
+                    <span class="sort-label">Review Count <button type="button" class="sort-toggle" aria-label="Sort Review Count">-</button></span>
+                  </th>
+                  <th>URL</th>
+                </tr>
+              </thead>
+              <tbody>
+              {% for p in products %}
+                <tr>
+                  <td>{{ p.name }}</td>
+                  <td>{{ p.platform }}</td>
+                  <td>{{ "%.2f"|format(p.price) }}</td>
+                  <td>{{ p.category }}</td>
+                  <td>{{ "%.2f"|format(p.rating) }}</td>
+                  <td>{{ p.review_count }}</td>
+                  <td>
+                    {% if p.url %}
+                    <a href="{{ p.url }}" target="_blank" rel="noopener noreferrer">Open</a>
+                    {% else %}
+                    <span class="text-muted">N/A</span>
+                    {% endif %}
+                  </td>
+                </tr>
+              {% else %}
+                <tr>
+                  <td colspan="7" class="text-center text-muted py-4">No products found.</td>
+                </tr>
+              {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  <script>
+    (function () {
+      const form = document.getElementById("searchForm");
+      const overlay = document.getElementById("liveSearchLoadingOverlay");
+      if (!form || !overlay) return;
+
+      form.addEventListener("submit", function (event) {
+        const submitter = event.submitter || document.activeElement;
+        if (!submitter || submitter.name !== "live" || submitter.value !== "true") return;
+
+        overlay.classList.add("is-visible");
+        overlay.setAttribute("aria-hidden", "false");
+      });
+    })();
+
+    (function () {
+      const toggle = document.getElementById("menuToggleButton");
+      const backdrop = document.getElementById("appMenuBackdrop");
+      const sidebar = document.getElementById("appMenuSidebar");
+      if (!toggle || !backdrop || !sidebar) return;
+
+      const closeMenu = () => document.body.classList.remove("menu-open");
+      const openMenu = () => document.body.classList.add("menu-open");
+
+      toggle.addEventListener("click", function () {
+        if (document.body.classList.contains("menu-open")) {
+          closeMenu();
+          return;
+        }
+        openMenu();
+      });
+
+      backdrop.addEventListener("click", closeMenu);
+
+      sidebar.querySelectorAll("[data-menu-link]").forEach((link) => {
+        link.addEventListener("click", closeMenu);
+      });
+
+      document.addEventListener("keydown", function (event) {
+        if (event.key === "Escape") {
+          closeMenu();
+        }
+      });
+    })();
+
+    (function () {
+      const minPrice = document.getElementById("minPrice");
+      const maxPrice = document.getElementById("maxPrice");
+      const minRating = document.getElementById("minRating");
+      const maxRating = document.getElementById("maxRating");
+
+      const minPriceValue = document.getElementById("minPriceValue");
+      const maxPriceValue = document.getElementById("maxPriceValue");
+      const minRatingValue = document.getElementById("minRatingValue");
+      const maxRatingValue = document.getElementById("maxRatingValue");
+      const table = document.getElementById("resultsTable");
+
+      const parseNumber = (value) => {
+        const cleaned = String(value || "").replace(/[^\d.-]/g, "");
+        const parsed = Number(cleaned);
+        return Number.isFinite(parsed) ? parsed : Number.NaN;
+      };
+
+      const applyRangeFilters = () => {
+        if (!table) return;
+
+        const tbody = table.querySelector("tbody");
+        if (!tbody) return;
+
+        const rows = Array.from(tbody.querySelectorAll("tr"));
+        const minPriceVal = minPrice ? Number(minPrice.value) : Number.NEGATIVE_INFINITY;
+        const maxPriceVal = maxPrice ? Number(maxPrice.value) : Number.POSITIVE_INFINITY;
+        const minRatingVal = minRating ? Number(minRating.value) : Number.NEGATIVE_INFINITY;
+        const maxRatingVal = maxRating ? Number(maxRating.value) : Number.POSITIVE_INFINITY;
+
+        rows.forEach((row) => {
+          if (row.children.length <= 1) {
+            row.style.display = "";
+            return;
+          }
+
+          const price = parseNumber(row.children[2] ? row.children[2].textContent : "");
+          const rating = parseNumber(row.children[4] ? row.children[4].textContent : "");
+
+          const priceInRange = Number.isFinite(price) && price >= minPriceVal && price <= maxPriceVal;
+          const ratingInRange = Number.isFinite(rating) && rating >= minRatingVal && rating <= maxRatingVal;
+
+          row.style.display = priceInRange && ratingInRange ? "" : "none";
+        });
+      };
+
+      const syncPair = (minInput, maxInput, minOut, maxOut) => {
+        if (!minInput || !maxInput || !minOut || !maxOut) return;
+
+        const update = () => {
+          let minVal = Number(minInput.value);
+          let maxVal = Number(maxInput.value);
+
+          if (minVal > maxVal) {
+            if (document.activeElement === minInput) {
+              maxVal = minVal;
+              maxInput.value = String(maxVal);
+            } else {
+              minVal = maxVal;
+              minInput.value = String(minVal);
+            }
+          }
+
+          minOut.textContent = minInput.value;
+          maxOut.textContent = maxInput.value;
+          applyRangeFilters();
+        };
+
+        minInput.addEventListener("input", update);
+        maxInput.addEventListener("input", update);
+        update();
+      };
+
+      syncPair(minPrice, maxPrice, minPriceValue, maxPriceValue);
+      syncPair(minRating, maxRating, minRatingValue, maxRatingValue);
+    })();
+
+    (function () {
+      const table = document.getElementById("resultsTable");
+      if (!table) return;
+
+      const tbody = table.querySelector("tbody");
+      if (!tbody) return;
+
+      const headers = table.querySelectorAll("th[data-sort-index]");
+      const getCellValue = (row, index) => {
+        const cell = row.children[index];
+        return cell ? cell.textContent.trim() : "";
+      };
+
+      const toNumber = (value) => {
+        const cleaned = (value || "").replace(/[^\d.-]/g, "");
+        const num = Number(cleaned);
+        return Number.isFinite(num) ? num : Number.NEGATIVE_INFINITY;
+      };
+
+      headers.forEach((header) => {
+        const button = header.querySelector(".sort-toggle");
+        if (!button) return;
+
+        button.dataset.direction = "none";
+
+        button.addEventListener("click", function () {
+          const index = Number(header.dataset.sortIndex);
+          const sortType = header.dataset.sortType || "string";
+
+          headers.forEach((h) => {
+            const otherBtn = h.querySelector(".sort-toggle");
+            if (!otherBtn || otherBtn === button) return;
+            otherBtn.dataset.direction = "none";
+            otherBtn.textContent = "-";
+            otherBtn.classList.remove("active");
+          });
+
+          const current = button.dataset.direction || "none";
+          const next = current === "asc" ? "desc" : "asc";
+          button.dataset.direction = next;
+          button.textContent = next === "asc" ? "^" : "v";
+          button.classList.add("active");
+
+          const rows = Array.from(tbody.querySelectorAll("tr"));
+          const sortableRows = rows.filter((row) => row.children.length > 1);
+
+          sortableRows.sort((a, b) => {
+            const aValue = getCellValue(a, index);
+            const bValue = getCellValue(b, index);
+
+            if (sortType === "number") {
+              const diff = toNumber(aValue) - toNumber(bValue);
+              return next === "asc" ? diff : -diff;
+            }
+
+            const cmp = aValue.localeCompare(bValue, undefined, { sensitivity: "base" });
+            return next === "asc" ? cmp : -cmp;
+          });
+
+          sortableRows.forEach((row) => tbody.appendChild(row));
+        });
+      });
+    })();
+  </script>
+</body>
+</html>
